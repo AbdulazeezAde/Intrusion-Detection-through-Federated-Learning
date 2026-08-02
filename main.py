@@ -4,7 +4,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, OrderedDict
 import gc
 from sklearn.model_selection import StratifiedKFold
 
@@ -96,7 +96,7 @@ def run_federated_experiment(
             weights, num_samples = client.train_local(
                 epochs=local_epochs, 
                 lr=learning_rate, 
-                apply_smote=use_smote
+                apply_smote=use_smote, mu=0.01
             )
             client_weights.append(weights)
             client_sample_counts.append(num_samples)

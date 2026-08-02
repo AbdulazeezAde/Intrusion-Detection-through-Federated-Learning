@@ -8,15 +8,16 @@ class FederatedClient:
     def __init__(self, client_id, dataloader, device, model):
         self.client_id, self.dataloader, self.device = client_id, dataloader, device
         self.model_class, self.local_model = type(model), None
-    
+
     def _smote(self, X, y):
         classes = np.unique(y)
         if len(classes) < 2: return X, y
         min_cnt = min([np.sum(y==c) for c in classes])
         if min_cnt <= 5: return X, y
         return SMOTE(random_state=42, k_neighbors=min(5, min_cnt-1)).fit_resample(X, y)
-    
-    def train_local(self, epochs, lr, apply_smote=False):
+
+    def train_local(self, epochs, lr, apply_smote=False, mu=0.01):
+        """Train locally with optional FedProx regularization (mu=0 disables it)."""
         X = np.vstack([i.numpy() for i, _ in self.dataloader])
         y = np.concatenate([l.numpy() for _, l in self.dataloader])
         n_samples = len(y)
@@ -27,12 +28,22 @@ class FederatedClient:
         cw = torch.FloatTensor([len(y)/(2*np.sum(y==i)) if np.sum(y==i)>0 else 1.0 for i in range(2)]).to(self.device)
         crit, opt = nn.CrossEntropyLoss(weight=cw), optim.Adam(self.local_model.parameters(), lr=lr)
         sched = optim.lr_scheduler.ReduceLROnPlateau(opt, mode='min', factor=0.5, patience=3)
+        
+        # Store global weights for FedProx proximal term
+        global_dict = {k: v.clone() for k, v in self.local_model.state_dict().items()}
+        
         for _ in range(epochs):
             loss_sum = 0
             for inp, lab in loader:
                 inp, lab = inp.to(self.device), lab.to(self.device)
                 opt.zero_grad()
                 loss = crit(self.local_model(inp), lab)
+                
+                # Add FedProx Proximal Term: (mu/2) * ||w - w_global||^2
+                if mu > 0:
+                    prox_term = sum(torch.norm(p - global_dict[n])**2 for n, p in self.local_model.named_parameters())
+                    loss += (mu / 2) * prox_term
+                
                 loss.backward()
                 opt.step()
                 loss_sum += loss.item()
