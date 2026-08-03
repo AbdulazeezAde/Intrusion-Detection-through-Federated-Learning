@@ -85,14 +85,27 @@ For the Graph Neural Network branch, tabular data is converted into a graph stru
 
 ## 3.4 Proposed Algorithms
 
-### 3.4.1 Local Client Training with SMOTE & FedProx
-To handle class imbalance and Non-IID data, clients minimize the following objective function at round $t$:
+### 3.4.1 Local Data Augmentation: SMOTE vs. FedGAN
+To address severe class imbalance, this research compares two augmentation strategies:
+
+**A. SMOTE (Synthetic Minority Over-sampling Technique)**
+The baseline approach interpolates between existing minority samples:
+$$ x_{new} = x_i + \lambda \cdot (x_{zi} - x_i) $$
+While effective, SMOTE can lead to overgeneralization and noise amplification.
+
+**B. FedGAN (Federated Generative Adversarial Networks)**
+Our proposed advanced approach employs a **Conditional WGAN-GP** trained locally on each client.
+1.  **Generator ($G$):** Takes random noise $z$ and a target class label $c$ to synthesize realistic attack vectors: $\hat{x} = G(z, c)$.
+2.  **Discriminator ($D$):** Distinguishes between real local traffic and synthetic samples, conditioned on the class label.
+3.  **Federated Aggregation:** Only the **Generator weights** are shared with the server and averaged, allowing clients to learn a robust global distribution of attack patterns without sharing raw data.
+
+The objective function for the WGAN-GP is:
+$$ \mathcal{L}_{WGAN-GP} = \mathbb{E}_{x \sim P_r}[D(x)] - \mathbb{E}_{\hat{x} \sim P_g}[D(\hat{x})] + \lambda \mathbb{E}_{\tilde{x} \sim P_{\tilde{x}}}[(||\nabla_{\tilde{x}} D(\tilde{x})||_2 - 1)^2] $$
+
+### 3.4.2 Local Client Training with FedProx
+Clients minimize the following objective function at round $t$, incorporating the augmented data:
 
 $$ L_k(\theta) = \underbrace{\mathcal{L}_{CE}(y, \hat{y})}_{\text{Cross Entropy}} + \underbrace{\frac{\mu}{2} ||\theta - \theta_{global}||^2}_{\text{FedProx Regularization}} $$
-
-Where $\mu$ is the proximal term controlling the deviation from the global model. Before training, SMOTE synthesizes $N_{syn}$ samples for the minority class:
-$$ x_{new} = x_i + \lambda \cdot (x_{zi} - x_i) $$
-Where $x_{zi}$ is a random k-nearest neighbor of $x_i$.
 
 ### 3.4.2 Adaptive Server Aggregation (FedAdam)
 Instead of simple averaging (FedAvg), the server uses **FedAdam** to adaptively update the global model based on momentum and variance of client updates:
