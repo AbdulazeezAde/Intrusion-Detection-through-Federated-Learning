@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from typing import Tuple, List
+import torch
+from torch.utils.data import DataLoader, TensorDataset
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -18,6 +20,29 @@ COLUMNS = [
     'dst_host_srv_serror_rate', 'dst_host_rerror_rate', 'dst_host_srv_rerror_rate',
     'label', 'difficulty_level'
 ]
+
+def create_dataloader(X: np.ndarray, y: np.ndarray, batch_size: int = 64, shuffle: bool = True) -> DataLoader:
+    """
+    Create a PyTorch DataLoader from numpy arrays.
+    
+    Args:
+        X: Feature matrix (numpy array).
+        y: Labels vector (numpy array).
+        batch_size: Batch size for training.
+        shuffle: Whether to shuffle the data.
+        
+    Returns:
+        PyTorch DataLoader.
+    """
+    X_tensor = torch.FloatTensor(X)
+    # Ensure labels are LongTensor for CrossEntropyLoss or BCEWithLogitsLoss compatibility
+    if len(y.shape) == 1 or y.shape[1] == 1:
+        y_tensor = torch.LongTensor(y.astype(int)).squeeze()
+    else:
+        y_tensor = torch.FloatTensor(y)
+        
+    dataset = TensorDataset(X_tensor, y_tensor)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 def load_and_preprocess_nslkdd(train_path: str, test_path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
